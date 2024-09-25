@@ -1,6 +1,6 @@
-#include <stdio.h>
+#include "./lib/mythread.h"
 
 int main(void) {
-	printf("task1_6\n");
+	hello();
 	return 0;
 }
