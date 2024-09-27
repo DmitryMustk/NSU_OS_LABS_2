@@ -1,3 +1,4 @@
+#include <bits/types/stack_t.h>
 #include <ucontext.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,9 +10,13 @@
 
 static uthread_t* curThread = NULL;
 static ucontext_t mainContext;
+static size_t threadNum;
 
 int uthread_create(uthread_t *thread, void *(*start_routine)(void *), void *arg) {
 	if (getcontext(&(thread->context)) == -1) {
+		return -1;
+	}
+	if (threadNum == MAX_UTHREADS) {
 		return -1;
 	}
 
@@ -27,6 +32,8 @@ int uthread_create(uthread_t *thread, void *(*start_routine)(void *), void *arg)
 	makecontext(&(thread->context), (void (*)(void))start_routine, 1, arg); 
 
 	thread->finished = 0;
+
+	threadNum++;
 	return 0;
 }
 
