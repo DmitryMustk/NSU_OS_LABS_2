@@ -17,12 +17,13 @@ void* t1Routine(void* args) {
 	return NULL;
 }
 
-
 void sigintHandler(int sig) {
 	if (sig == SIGINT) {
 		printf("Thread 2: catch SIGINT\n");
 	}
+
 }
+
 
 void* t2Routine(void* args) {
 	(void)args;
@@ -65,7 +66,7 @@ void* t3Routine(void* args) {
 
 	int sig;
 	sigwait(&sigSet, &sig);
-	if (sig == SIGQUIT) {
+	if (sig == SIGINT) {
 		printf("Thread 3: catch SIGQUIT\n");
 	}
 
