@@ -71,7 +71,7 @@ void *writer(void *arg) {
 	return NULL;
 }
 
-int main() {
+int main(void) {
 	pthread_t tid;
 	queue_t *q;
 	int err;
