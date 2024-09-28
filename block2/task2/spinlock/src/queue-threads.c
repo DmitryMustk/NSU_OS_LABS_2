@@ -59,7 +59,7 @@ void *writer(void *arg) {
 	queue_t *q = (queue_t *)arg;
 	printf("writer [%d %d %d]\n", getpid(), getppid(), gettid());
 
-	set_cpu(1);
+	set_cpu(0);
 
 	while (1) {
 		int ok = queue_add(q, i);

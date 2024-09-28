@@ -1,7 +1,7 @@
 #ifndef __FITOS_QUEUE_H__
 #define __FITOS_QUEUE_H__
 
-#define _GNU_SOURCE
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +19,7 @@ typedef struct _Queue {
 	qnode_t *last;
 
 	pthread_t qmonitor_tid;
+	pthread_spinlock_t lock;
 
 	int count;
 	int max_count;

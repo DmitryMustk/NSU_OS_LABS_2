@@ -34,6 +34,11 @@ queue_t* queue_init(int max_count) {
 	q->add_attempts = q->get_attempts = 0;
 	q->add_count = q->get_count = 0;
 
+	err = pthread_spin_init(&q->lock, 0);
+	if (err) {
+		printf("queue_init: pthread_spin_init() failed: %s\n", strerror(err));
+	}
+
 	err = pthread_create(&q->qmonitor_tid, NULL, qmonitor, q);
 	if (err) {
 		printf("queue_init: pthread_create() failed: %s\n", strerror(err));
@@ -44,6 +49,8 @@ queue_t* queue_init(int max_count) {
 }
 
 void queue_destroy(queue_t *q) {
+	pthread_spin_lock(&q->lock);
+
 	pthread_cancel(q->qmonitor_tid);
 	pthread_join(q->qmonitor_tid, NULL);
 
@@ -53,7 +60,11 @@ void queue_destroy(queue_t *q) {
 		free(tmp);
 	}
 
+	pthread_spinlock_t tmpLock = q->lock;
+	pthread_spin_destroy(&q->lock);
 	free(q);
+
+	pthread_spin_unlock(&tmpLock);
 }
 
 int queue_add(queue_t *q, int val) {
@@ -61,11 +72,16 @@ int queue_add(queue_t *q, int val) {
 
 	assert(q->count <= q->max_count);
 
-	if (q->count == q->max_count)
+	pthread_spin_lock(&q->lock);
+
+	if (q->count == q->max_count) {
+		pthread_spin_unlock(&q->lock);
 		return 0;
+	}
 
 	qnode_t *new = malloc(sizeof(qnode_t));
 	if (!new) {
+		pthread_spin_unlock(&q->lock);
 		printf("Cannot allocate memory for new node\n");
 		abort();
 	}
@@ -82,7 +98,8 @@ int queue_add(queue_t *q, int val) {
 
 	q->count++;
 	q->add_count++;
-
+	
+	pthread_spin_unlock(&q->lock);
 	return 1;
 }
 
@@ -90,9 +107,13 @@ int queue_get(queue_t *q, int *val) {
 	q->get_attempts++;
 
 	assert(q->count >= 0);
+	
+	pthread_spin_lock(&q->lock);
 
-	if (q->count == 0)
+	if (q->count == 0) {
+		pthread_spin_unlock(&q->lock);
 		return 0;
+	}
 
 	qnode_t *tmp = q->first;
 
@@ -103,6 +124,7 @@ int queue_get(queue_t *q, int *val) {
 	q->count--;
 	q->get_count++;
 
+	pthread_spin_unlock(&q->lock);
 	return 1;
 }
 
