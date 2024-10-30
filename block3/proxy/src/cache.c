@@ -48,6 +48,7 @@ void cacheInsertData(CacheEntry *entry, const char *data, size_t length) {
 	pthread_mutex_lock(&entry->mutex);
 
 	entry->data = realloc(entry->data, entry->downloadedSize + length);
+	memcpy(entry->data + entry->downloadedSize, data, length);
 	entry->downloadedSize += length;
 
 	pthread_cond_broadcast(&entry->cond);

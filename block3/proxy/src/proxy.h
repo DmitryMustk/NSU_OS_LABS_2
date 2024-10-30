@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 
-#define PORT             9006
+#define PORT             9007
 #define CACHE_SIZE_LIMIT 1048576 //1Mb
 #define BUFFER_SIZE      8192
 #define URL_MAX_LENGHT   2048

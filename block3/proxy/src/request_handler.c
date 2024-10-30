@@ -81,10 +81,14 @@ void downloadData(CacheEntry *entry, const char *host, const char *path, int por
 
 	char buffer[BUFFER_SIZE];
 	ssize_t bytesReceived;
+	ssize_t bytesDownload = 0;
 	while ((bytesReceived = recv(serverSocket, buffer, sizeof(buffer), 0)) > 0) {
+		// printf("\n\n\nDOWNLOADED THIS BUFFER: %s\n\n", buffer);
 		cacheInsertData(entry, buffer, bytesReceived);
-	
+		bytesDownload += bytesReceived;
 	}
+
+	printf("\nDownloaded %zd bytes \n", bytesDownload);
 
 	cacheMarkComplete(entry);
 	close(serverSocket);
@@ -100,7 +104,7 @@ void handleRequest(int clientSocket) {
 		return;
 	}
 	buffer[BUFFER_SIZE - 1] = '\0';
-	printf("%s\n", buffer);
+	// printf("%s\n", buffer);
 	sscanf(buffer, "%s %s %s", method, url, protocol);
 	
 	// printf("METHOD:%s\nURL:%s\nPROTOCOL:%s\n", method, url, protocol);
@@ -123,6 +127,8 @@ void handleRequest(int clientSocket) {
 		pthread_mutex_unlock(&entry->mutex);
 		downloadData(entry, host, path, port);
 		pthread_mutex_lock(&entry->mutex);
+	} else {
+		printf("\n\nCache hit DETECTED!!!\n\n");
 	}
 
 	//Send to client
@@ -132,8 +138,8 @@ void handleRequest(int clientSocket) {
 			ssize_t chunk = send(clientSocket, entry->data + sentBytes, entry->downloadedSize - sentBytes, 0);
 			if (chunk <= 0) {
 				break;
-				sentBytes += chunk;
 			}
+			sentBytes += chunk;
 		}
 		if (!entry->isComplete) {
 			pthread_cond_wait(&entry->cond, &entry->mutex);
