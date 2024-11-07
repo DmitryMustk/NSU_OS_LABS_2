@@ -7,9 +7,39 @@
 #include <string.h>
 #include <time.h>
 
+#define CACHE_MAX_SIZE 1
+
 CacheEntry* cache = NULL;
 size_t curCacheSize = 0;
+size_t cacheSize = 0;
 pthread_mutex_t cacheMutex = PTHREAD_MUTEX_INITIALIZER;
+
+void removeOldestEntry(void) {
+	CacheEntry* entry = cache;
+	CacheEntry* prev = NULL;
+	CacheEntry* oldestEntry = cache;
+	CacheEntry* oldestPrev = NULL;
+
+	while (entry) {
+		if (entry->lastAccessTime < oldestEntry->lastAccessTime) {
+			oldestEntry = entry;
+			oldestPrev = prev;
+		}
+		prev = entry;
+		entry = entry->next;
+	}
+
+	if (oldestPrev) {
+		oldestPrev->next = oldestEntry->next;
+	} else {
+		cache = oldestEntry->next;
+	}
+
+	free(oldestEntry->data);
+	pthread_mutex_destroy(&oldestEntry->mutex);
+	pthread_cond_destroy(&oldestEntry->cond);
+	free(oldestEntry);
+}
 
 CacheEntry* getOrCreateCacheEntry(const char* url) {
 	pthread_mutex_lock(&cacheMutex);
@@ -22,7 +52,9 @@ CacheEntry* getOrCreateCacheEntry(const char* url) {
 		}
 		entry = cache->next;
 	}
-
+	if (cacheSize >= CACHE_MAX_SIZE) {
+		removeOldestEntry();
+	} 
 	entry = malloc(sizeof(CacheEntry));
 	if (!entry) {
 		pthread_mutex_unlock(&cacheMutex);
@@ -40,9 +72,12 @@ CacheEntry* getOrCreateCacheEntry(const char* url) {
 	entry->next = cache;
 	cache = entry;
 
+	cacheSize++;
 	pthread_mutex_unlock(&cacheMutex);
+
 	return entry;
 }
+
 
 void cacheInsertData(CacheEntry *entry, const char *data, size_t length) {
 	pthread_mutex_lock(&entry->mutex);

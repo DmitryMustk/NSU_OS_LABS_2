@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 
-#define PORT             9007
+#define PORT             9008
 #define CACHE_SIZE_LIMIT 1048576 //1Mb
 #define BUFFER_SIZE      8192
 #define URL_MAX_LENGHT   2048
@@ -14,6 +14,7 @@ typedef struct CacheEntry {
 	size_t dataSize;
 	size_t downloadedSize;
 	int isComplete;
+	time_t lastAccessTime;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	struct CacheEntry* next;

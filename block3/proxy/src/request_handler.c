@@ -132,10 +132,10 @@ void handleRequest(int clientSocket) {
 	}
 
 	//Send to client
-	ssize_t sentBytes = 0;
+	size_t sentBytes = 0;
 	while (sentBytes < entry->downloadedSize || !entry->isComplete) {
 		while (sentBytes < entry->downloadedSize) {
-			ssize_t chunk = send(clientSocket, entry->data + sentBytes, entry->downloadedSize - sentBytes, 0);
+			size_t chunk = send(clientSocket, entry->data + sentBytes, entry->downloadedSize - sentBytes, 0);
 			if (chunk <= 0) {
 				break;
 			}
