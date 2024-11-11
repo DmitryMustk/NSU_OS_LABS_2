@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 
 #define HTTP_PORT 80
+#define EROR_TTL 1
 
 static int parseURL(const char* url, char* host, char* path, int* port) {
 	char* urlCopy = strdup(url);
@@ -19,19 +20,22 @@ static int parseURL(const char* url, char* host, char* path, int* port) {
 	}
 
 	*port = HTTP_PORT;
+	// http://host:port/path
 	if (sscanf(urlCopy, "http://%99[^:/]:%d/%1999[^\n]", host, port, path) == 3) {
-        // URL with specified port
+    // http://host/path
     } else if (sscanf(urlCopy, "http://%99[^/]/%1999[^\n]", host, path) == 2) {
-        // URL without specified port
+    // http://host:port
     } else if (sscanf(urlCopy, "http://%99[^:/]:%d[^\n]", host, port) == 2) {
         strcpy(path, "");
+	// http://host
     } else if (sscanf(urlCopy, "http://%99[^\n]", host) == 1) {
         strcpy(path, "");
     } else {
         free(urlCopy);
         return -1;  // Invalid URL
     }
-	host[strlen(host) - 1] = '\0';
+
+	printf("[INFO] Host: %s; Port: %d Path: %s\n", host, *port, path);
 	free(urlCopy);
 	return 0;
 }
@@ -66,10 +70,19 @@ static int connectToHost(const char* host, int port) {
 	return (p == NULL) ? -1: sockFd;
 }
 
+int getHeadersSize(char* buffer) {
+	char* headersEnd = strstr(buffer, "\r\n\r\n");
+	return headersEnd - buffer;
+}
+
+int isResponseStatusOk(char* buffer) {
+	return strstr(buffer, "HTTP/1.0 200 OK") || strstr(buffer, "HTTP/1.1 200 OK");
+}
+
 typedef struct {
 	CacheEntry* entry;
-	const char host[256];
-	const char path[1024];
+	char host[256];
+	char path[1024];
 	int port;
 } DownloadDataArgs;
 
@@ -79,14 +92,14 @@ void* downloadData(void* args) {
 	const char* path  = ((DownloadDataArgs*)args)->path;
 	int port          = ((DownloadDataArgs*)args)->port;
 
-
 	int serverSocket = connectToHost(host, port);
-	printf("[INFO] Connected to: %s:%d\n", host, port);
 	if (serverSocket < 0) {
 		perror("[ERROR] Can't connect to server");
 		cacheMarkComplete(entry);
+		deleteEntry(entry);
 		return NULL;
 	}
+	printf("[INFO] Connected to: %s:%d/%s\n", host, port, path);
 
 	char request[BUFFER_SIZE];
 	snprintf(request, sizeof(request), "GET /%s HTTP/1.0\r\nHost: %s\r\n\r\n", path, host);
@@ -95,6 +108,30 @@ void* downloadData(void* args) {
 	char buffer[BUFFER_SIZE];
 	ssize_t bytesReceived;
 	ssize_t bytesDownload = 0;
+
+	//Receive Headers
+	bytesReceived = recv(serverSocket, buffer, sizeof(buffer), 0);
+	if (bytesReceived <= 0) {
+		perror("[ERROR] Failed to receive data\n");
+		close(serverSocket);
+		cacheMarkComplete(entry);
+		cacheMarkOk(entry, 0);
+		return NULL;
+	}
+	
+	if (!isResponseStatusOk(buffer)) {
+		printf("[ERROR] Received non 200 Status Code\n");
+		
+		cacheInsertData(entry, buffer, bytesReceived);
+		cacheMarkComplete(entry);
+		cacheMarkOk(entry, 0);
+		return NULL;
+	}
+
+	int headersSize = getHeadersSize(buffer);
+	cacheInsertData(entry, buffer + headersSize, bytesReceived - headersSize);
+	bytesDownload += bytesReceived - headersSize;
+
 	while ((bytesReceived = recv(serverSocket, buffer, sizeof(buffer), 0)) > 0) {
 		cacheInsertData(entry, buffer, bytesReceived);
 		bytesDownload += bytesReceived;
@@ -104,7 +141,7 @@ void* downloadData(void* args) {
 
 	cacheMarkComplete(entry);
 	close(serverSocket);
-
+	free(args); 
 	return NULL;
 }
 
@@ -167,6 +204,10 @@ void handleRequest(int clientSocket) {
 		if (!entry->isComplete) {
 			pthread_cond_wait(&entry->cond, &entry->mutex);
 		}
+	}
+
+	if (!entry->isOk) {
+		deleteEntry(entry);
 	}
 
 	pthread_mutex_unlock(&entry->mutex);

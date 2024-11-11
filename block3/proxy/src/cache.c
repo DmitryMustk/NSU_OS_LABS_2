@@ -14,31 +14,48 @@ size_t curCacheSize = 0;
 size_t cacheSize = 0;
 pthread_mutex_t cacheMutex = PTHREAD_MUTEX_INITIALIZER;
 
+void deleteEntry(CacheEntry* entry) {
+    pthread_mutex_lock(&cacheMutex);
+
+    CacheEntry* cur = cache;
+    CacheEntry* prev = NULL;
+
+    while (cur != NULL) {
+        if (cur == entry) {
+            if (prev == NULL) {
+                cache = cur->next;
+            } else {
+                prev->next = cur->next;
+            }
+
+            free(cur->data);
+            pthread_mutex_destroy(&cur->mutex);
+            pthread_cond_destroy(&cur->cond);
+            free(cur);
+
+            cacheSize--;
+            pthread_mutex_unlock(&cacheMutex);
+            return;
+        }
+
+        prev = cur;
+        cur = cur->next;
+    }
+
+    pthread_mutex_unlock(&cacheMutex);
+}
+
 void removeOldestEntry(void) {
 	CacheEntry* entry = cache;
-	CacheEntry* prev = NULL;
 	CacheEntry* oldestEntry = cache;
-	CacheEntry* oldestPrev = NULL;
 
 	while (entry) {
 		if (entry->lastAccessTime < oldestEntry->lastAccessTime) {
 			oldestEntry = entry;
-			oldestPrev = prev;
 		}
-		prev = entry;
 		entry = entry->next;
 	}
-
-	if (oldestPrev) {
-		oldestPrev->next = oldestEntry->next;
-	} else {
-		cache = oldestEntry->next;
-	}
-
-	free(oldestEntry->data);
-	pthread_mutex_destroy(&oldestEntry->mutex);
-	pthread_cond_destroy(&oldestEntry->cond);
-	free(oldestEntry);
+	deleteEntry(oldestEntry);
 }
 
 CacheEntry* getOrCreateCacheEntry(const char* url) {
@@ -66,6 +83,7 @@ CacheEntry* getOrCreateCacheEntry(const char* url) {
 	entry->dataSize = 0;
 	entry->downloadedSize = 0;
 	entry->isComplete = 0;
+	entry->isOk = 1;
 	pthread_mutex_init(&entry->mutex, NULL);
 	pthread_cond_init(&entry->cond, NULL);
 
@@ -87,6 +105,12 @@ void cacheInsertData(CacheEntry *entry, const char *data, size_t length) {
 	entry->downloadedSize += length;
 
 	pthread_cond_broadcast(&entry->cond);
+	pthread_mutex_unlock(&entry->mutex);
+}
+
+void cacheMarkOk(CacheEntry* entry, int val) {
+	pthread_mutex_lock(&entry->mutex);
+	entry->isOk = val;
 	pthread_mutex_unlock(&entry->mutex);
 }
 
