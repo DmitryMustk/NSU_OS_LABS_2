@@ -81,9 +81,9 @@ void* downloadData(void* args) {
 
 
 	int serverSocket = connectToHost(host, port);
-	printf("HOST:%s  PORT:%d", host, port);
+	printf("[INFO] Connected to: %s:%d\n", host, port);
 	if (serverSocket < 0) {
-		perror("Can't connect to server");
+		perror("[ERROR] Can't connect to server");
 		cacheMarkComplete(entry);
 		return NULL;
 	}
@@ -100,7 +100,7 @@ void* downloadData(void* args) {
 		bytesDownload += bytesReceived;
 	}
 
-	printf("\nDownloaded %zd bytes \n", bytesDownload);
+	printf("[INFO] Downloaded %zd bytes\n", bytesDownload);
 
 	cacheMarkComplete(entry);
 	close(serverSocket);
@@ -118,11 +118,8 @@ void handleRequest(int clientSocket) {
 		return;
 	}
 	buffer[BUFFER_SIZE - 1] = '\0';
-	// printf("%s\n", buffer);
 	sscanf(buffer, "%s %s %s", method, url, protocol);
 	
-	// printf("METHOD:%s\nURL:%s\nPROTOCOL:%s\n", method, url, protocol);
-
 	if (strcmp(method, "GET") != 0) {
 		const char* response = "HTTP/1.0 405 Method Not Allowed\r\n\r\n";
 		send(clientSocket, response, strlen(response), 0);
@@ -154,7 +151,7 @@ void handleRequest(int clientSocket) {
 		pthread_create(&entry->downloadThread, NULL, downloadData, args);
 
 	} else {
-		printf("\n\nCache hit DETECTED!!!\n\n");
+		printf("[INFO] Cache hit detected!\n");
 	}
 
 	//Send to client

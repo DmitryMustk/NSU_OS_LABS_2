@@ -48,16 +48,23 @@ void startServer(int port) {
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Server started and waiting for connections....\n");
+	printf("[INFO] Server started and waiting for connections....\n");
 
 	while(1) {
 		clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
+		char addrBuf[sizeof(struct in_addr)];
+		inet_ntop(AF_INET, &clientAddr.sin_addr.s_addr, addrBuf, clientAddrLen);
+		printf("[INFO] Server accepted the new connection: %s:%d\n", addrBuf, ntohs(clientAddr.sin_port));
 		if (clientSocket < 0) {
-			perror("Error while accepting connection");
+			perror("[ERROR] Error while accepting connection");
 			continue;
 		}
 
 		int* clientSocketPtr = malloc(sizeof(int));
+		if (clientSocketPtr == NULL) {
+			perror("[ERROR] malloc error");
+			continue;
+		}
 		*clientSocketPtr = clientSocket;
 
 		pthread_t clientThreadId;

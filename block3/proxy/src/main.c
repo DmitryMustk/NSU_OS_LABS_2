@@ -3,7 +3,7 @@
 #include "proxy.h"
 
 int main(void) {
-	printf("Starting proxy server on %d port....\n", PORT);
+	printf("[INFO] Starting proxy server on %d port....\n", PORT);
 	startServer(PORT);
 	
 	return 0;
