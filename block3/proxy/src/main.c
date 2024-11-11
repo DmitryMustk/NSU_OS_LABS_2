@@ -1,10 +1,13 @@
 #include <stdio.h>
 
 #include "proxy.h"
+#include "logger.h"
 
 int main(void) {
-	printf("[INFO] Starting proxy server on %d port....\n", PORT);
-	startServer(PORT);
+	Logger* logger = createLogger("proxy.log", LOG_DEBUG, 1);
+    
+	logMessage(logger, LOG_INFO, "Starting proxy server on %d port....", PORT);
+	startServer(PORT, logger);
 	
 	return 0;
 }

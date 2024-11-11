@@ -1,4 +1,5 @@
 #include "proxy.h"
+#include "logger.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -12,6 +13,8 @@
 
 #define HTTP_PORT 80
 #define EROR_TTL 1
+
+Logger* logger;
 
 static int parseURL(const char* url, char* host, char* path, int* port) {
 	char* urlCopy = strdup(url);
@@ -34,8 +37,13 @@ static int parseURL(const char* url, char* host, char* path, int* port) {
         free(urlCopy);
         return -1;  // Invalid URL
     }
+	
+	if (strlen(path) == 0) {
+		host[strlen(host) - 1] = '\0';
+		// logMessage(logger, LOG_DEBUG, "emptyPath");
+	}
 
-	printf("[INFO] Host: %s; Port: %d Path: %s\n", host, *port, path);
+	logMessage(logger, LOG_INFO, "Host: %s; Port: %d Path: %s", host, *port, path);
 	free(urlCopy);
 	return 0;
 }
@@ -51,7 +59,6 @@ static int connectToHost(const char* host, int port) {
 	hints.ai_socktype = SOCK_STREAM;
 
 	if (getaddrinfo(host, portStr, &hints, &res) != 0) {
-
 		return -1;
 	}
 
@@ -94,12 +101,12 @@ void* downloadData(void* args) {
 
 	int serverSocket = connectToHost(host, port);
 	if (serverSocket < 0) {
-		perror("[ERROR] Can't connect to server");
+		logMessage(logger, LOG_ERROR, "Can't connect to server");
 		cacheMarkComplete(entry);
 		deleteEntry(entry);
 		return NULL;
 	}
-	printf("[INFO] Connected to: %s:%d/%s\n", host, port, path);
+	logMessage(logger, LOG_INFO, "Connected to: %s:%d/%s", host, port, path);
 
 	char request[BUFFER_SIZE];
 	snprintf(request, sizeof(request), "GET /%s HTTP/1.0\r\nHost: %s\r\n\r\n", path, host);
@@ -112,7 +119,7 @@ void* downloadData(void* args) {
 	//Receive Headers
 	bytesReceived = recv(serverSocket, buffer, sizeof(buffer), 0);
 	if (bytesReceived <= 0) {
-		perror("[ERROR] Failed to receive data\n");
+		logMessage(logger, LOG_ERROR, "Failed to receive data");
 		close(serverSocket);
 		cacheMarkComplete(entry);
 		cacheMarkOk(entry, 0);
@@ -120,8 +127,7 @@ void* downloadData(void* args) {
 	}
 	
 	if (!isResponseStatusOk(buffer)) {
-		printf("[ERROR] Received non 200 Status Code\n");
-		
+		logMessage(logger, LOG_ERROR, "Received non 200 Status Code");
 		cacheInsertData(entry, buffer, bytesReceived);
 		cacheMarkComplete(entry);
 		cacheMarkOk(entry, 0);
@@ -137,7 +143,7 @@ void* downloadData(void* args) {
 		bytesDownload += bytesReceived;
 	}
 
-	printf("[INFO] Downloaded %zd bytes\n", bytesDownload);
+	logMessage(logger, LOG_INFO, "Downloaded %zd bytes", bytesDownload);
 
 	cacheMarkComplete(entry);
 	close(serverSocket);
@@ -145,11 +151,13 @@ void* downloadData(void* args) {
 	return NULL;
 }
 
-void handleRequest(int clientSocket) {
+void handleRequest(int clientSocket, Logger* globalLogger) {
 	char buffer[BUFFER_SIZE];
 	char method[16], url[URL_MAX_LENGHT], protocol[16];
 	char host[256], path[1024];
 	int port;
+
+	logger = globalLogger;
 
 	if (recv(clientSocket, buffer, sizeof(buffer) - 1, 0) <= 0) {
 		return;
@@ -188,7 +196,7 @@ void handleRequest(int clientSocket) {
 		pthread_create(&entry->downloadThread, NULL, downloadData, args);
 
 	} else {
-		printf("[INFO] Cache hit detected!\n");
+		logMessage(logger, LOG_INFO, "Cache hit detected!");
 	}
 
 	//Send to client

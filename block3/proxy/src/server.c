@@ -1,4 +1,5 @@
 #include "proxy.h"
+#include "logger.h"
 
 #include <bits/pthreadtypes.h>
 #include <netinet/in.h>
@@ -12,16 +13,22 @@
 
 #define MAX_SERVER_QUEUE_SIZE 10
 
-void* clientThread(void* arg) {
-	int clientSocket = *(int*)arg;
-	free(arg);
+typedef struct {
+	int clientSocket;
+	Logger* logger;
+} ClientThreadRoutineArgs;
+
+void* clientThreadRoutine(void* args) {
+	int clientSocket = ((ClientThreadRoutineArgs*)args)->clientSocket;
+	Logger* logger   = ((ClientThreadRoutineArgs*)args)->logger;
 	
-	handleRequest(clientSocket);
+	handleRequest(clientSocket, logger);
+	free(args);
 	close(clientSocket);
 	return NULL;
 }
 
-void startServer(int port) {
+void startServer(int port, Logger* logger) {
 	int serverSocket, clientSocket;
 	struct sockaddr_in serverAddr, clientAddr;
 	socklen_t clientAddrLen = sizeof(clientAddr);
@@ -48,27 +55,29 @@ void startServer(int port) {
 		exit(EXIT_FAILURE);
 	}
 
-	printf("[INFO] Server started and waiting for connections....\n");
+	logMessage(logger, LOG_INFO, "Server started and waiting for connections....");
 
 	while(1) {
 		clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
 		char addrBuf[sizeof(struct in_addr)];
 		inet_ntop(AF_INET, &clientAddr.sin_addr.s_addr, addrBuf, clientAddrLen);
-		printf("[INFO] Server accepted the new connection: %s:%d\n", addrBuf, ntohs(clientAddr.sin_port));
+		logMessage(logger, LOG_INFO, "Server accepted the new connection: %s:%d", addrBuf, ntohs(clientAddr.sin_port));
 		if (clientSocket < 0) {
-			perror("[ERROR] Error while accepting connection");
+			logMessage(logger, LOG_INFO, "Error while accepting connection");
 			continue;
 		}
 
-		int* clientSocketPtr = malloc(sizeof(int));
-		if (clientSocketPtr == NULL) {
-			perror("[ERROR] malloc error");
+		ClientThreadRoutineArgs* args = malloc(sizeof(ClientThreadRoutineArgs));
+		if (args == NULL) {
+			logMessage(logger, LOG_ERROR, "ClientThreadRoutineArgs malloc error");
 			continue;
 		}
-		*clientSocketPtr = clientSocket;
+	
+		args->clientSocket = clientSocket;
+		args->logger = logger;
 
 		pthread_t clientThreadId;
-		pthread_create(&clientThreadId, NULL, clientThread, clientSocketPtr);
+		pthread_create(&clientThreadId, NULL, clientThreadRoutine, args);
 		pthread_detach(clientThreadId);
 	}
 }

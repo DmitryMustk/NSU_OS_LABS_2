@@ -1,9 +1,10 @@
 #ifndef PROXY_H
 #define PROXY_H
+#include "logger.h"
 
 #include <pthread.h>
 
-#define PORT             9003
+#define PORT             9006
 #define CACHE_SIZE_LIMIT 1048576 //1Mb
 //Should be >= 16kB to fully fit HTTP headers in single buffer
 #define BUFFER_SIZE      16384  //16kB 
@@ -32,9 +33,9 @@ void cacheMarkComplete(CacheEntry* entry);
 void cacheMarkOk(CacheEntry* entry, int val);
 
 //request_handler.c funcs
-void handleRequest(int clientSocket);
+void handleRequest(int clientSocket, Logger* globalLogger);
 void* downloadData(void* args);
 //server.c funcs
-void startServer(int port);
+void startServer(int port, Logger* logger);
 
 #endif //PROXY_H
