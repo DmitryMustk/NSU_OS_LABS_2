@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 
-#define PORT             9008
+#define PORT             9001
 #define CACHE_SIZE_LIMIT 1048576 //1Mb
 #define BUFFER_SIZE      8192
 #define URL_MAX_LENGHT   2048
@@ -16,6 +16,7 @@ typedef struct CacheEntry {
 	int isComplete;
 	time_t lastAccessTime;
 	pthread_mutex_t mutex;
+	pthread_t downloadThread;
 	pthread_cond_t cond;
 	struct CacheEntry* next;
 } CacheEntry;
@@ -28,8 +29,7 @@ void cacheMarkComplete(CacheEntry* entry);
 
 //request_handler.c funcs
 void handleRequest(int clientSocket);
-void downloadData(CacheEntry* entry, const char* host, const char* path, int port);
-
+void* downloadData(void* args);
 //server.c funcs
 void startServer(int port);
 

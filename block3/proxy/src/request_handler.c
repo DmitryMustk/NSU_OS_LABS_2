@@ -66,13 +66,26 @@ static int connectToHost(const char* host, int port) {
 	return (p == NULL) ? -1: sockFd;
 }
 
-void downloadData(CacheEntry *entry, const char *host, const char *path, int port) {
+typedef struct {
+	CacheEntry* entry;
+	const char host[256];
+	const char path[1024];
+	int port;
+} DownloadDataArgs;
+
+void* downloadData(void* args) {
+	CacheEntry* entry = ((DownloadDataArgs*)args)->entry;
+	const char* host  = ((DownloadDataArgs*)args)->host;
+	const char* path  = ((DownloadDataArgs*)args)->path;
+	int port          = ((DownloadDataArgs*)args)->port;
+
+
 	int serverSocket = connectToHost(host, port);
 	printf("HOST:%s  PORT:%d", host, port);
 	if (serverSocket < 0) {
 		perror("Can't connect to server");
 		cacheMarkComplete(entry);
-		return;
+		return NULL;
 	}
 
 	char request[BUFFER_SIZE];
@@ -83,7 +96,6 @@ void downloadData(CacheEntry *entry, const char *host, const char *path, int por
 	ssize_t bytesReceived;
 	ssize_t bytesDownload = 0;
 	while ((bytesReceived = recv(serverSocket, buffer, sizeof(buffer), 0)) > 0) {
-		// printf("\n\n\nDOWNLOADED THIS BUFFER: %s\n\n", buffer);
 		cacheInsertData(entry, buffer, bytesReceived);
 		bytesDownload += bytesReceived;
 	}
@@ -92,6 +104,8 @@ void downloadData(CacheEntry *entry, const char *host, const char *path, int por
 
 	cacheMarkComplete(entry);
 	close(serverSocket);
+
+	return NULL;
 }
 
 void handleRequest(int clientSocket) {
@@ -123,10 +137,22 @@ void handleRequest(int clientSocket) {
 
 	//Check cache
 	CacheEntry* entry = getOrCreateCacheEntry(url);
+	pthread_mutex_lock(&entry->mutex);
 	if (!entry->isComplete) {
 		pthread_mutex_unlock(&entry->mutex);
-		downloadData(entry, host, path, port);
-		pthread_mutex_lock(&entry->mutex);
+		DownloadDataArgs* args = malloc(sizeof(DownloadDataArgs));
+		if (args == NULL) {
+			perror("Malloc error");
+			return;
+		}
+
+		args->entry = entry;
+		strncpy(args->path, path, sizeof(args->path));
+		strncpy(args->host, host, sizeof(args->host));
+		args->port = port;
+
+		pthread_create(&entry->downloadThread, NULL, downloadData, args);
+
 	} else {
 		printf("\n\nCache hit DETECTED!!!\n\n");
 	}
