@@ -7,7 +7,7 @@
 #include <string.h>
 #include <time.h>
 
-#define CACHE_MAX_SIZE 1
+#define CACHE_MAX_SIZE 2
 
 CacheEntry* cache = NULL;
 size_t curCacheSize = 0;
@@ -47,15 +47,29 @@ void deleteEntry(CacheEntry* entry) {
 
 void removeOldestEntry(void) {
 	CacheEntry* entry = cache;
+	CacheEntry* prev = NULL;
 	CacheEntry* oldestEntry = cache;
+	CacheEntry* oldestPrev = NULL;
 
 	while (entry) {
 		if (entry->lastAccessTime < oldestEntry->lastAccessTime) {
 			oldestEntry = entry;
+			oldestPrev = prev;
 		}
+		prev = entry;
 		entry = entry->next;
 	}
-	deleteEntry(oldestEntry);
+
+	if (oldestPrev) {
+		oldestPrev->next = oldestEntry->next;
+	} else {
+		cache = oldestEntry->next;
+	}
+
+	free(oldestEntry->data);
+	pthread_mutex_destroy(&oldestEntry->mutex);
+	pthread_cond_destroy(&oldestEntry->cond);
+	free(oldestEntry);
 }
 
 CacheEntry* getOrCreateCacheEntry(const char* url) {

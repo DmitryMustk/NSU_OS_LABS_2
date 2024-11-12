@@ -3,6 +3,8 @@
 #include "proxy.h"
 #include "logger.h"
 
+//fix bug
+
 int main(void) {
 	Logger* logger = createLogger("proxy.log", LOG_DEBUG, 1);
     

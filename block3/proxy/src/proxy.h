@@ -4,7 +4,7 @@
 
 #include <pthread.h>
 
-#define PORT             9006
+#define PORT             9007
 #define CACHE_SIZE_LIMIT 1048576 //1Mb
 //Should be >= 16kB to fully fit HTTP headers in single buffer
 #define BUFFER_SIZE      16384  //16kB 
